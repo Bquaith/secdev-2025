@@ -37,14 +37,14 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pip-
 
-      - name: Install deps (log to CI_LOG)
+      - name: Install deps (and test helpers) — log to CI_LOG
         run: |
           CI_LOG=EVIDENCE/ci-$(date +'%Y-%m-%d')-build.txt
           printf "%s Install deps START\n" "$(date +'%Y-%m-%dT%H:%M:%S%:z')" >> "$CI_LOG"
-          pip install -r requirements.txt >> "$CI_LOG" 2>&1
-          ret=$?
-          printf "%s Install deps END exit=%d\n" "$(date +'%Y-%m-%dT%H:%M:%S%:z')" $ret >> "$CI_LOG"
-          if [ $ret -ne 0 ]; then cat "$CI_LOG"; exit $ret; fi
+          # Install project deps then ensure pytest-html & pytest-cov are available
+          pip install -r requirements.txt >> "$CI_LOG" 2>&1 || { cat "$CI_LOG"; exit 1; }
+          pip install pytest pytest-cov pytest-html coverage >> "$CI_LOG" 2>&1 || { cat "$CI_LOG"; exit 1; }
+          printf "%s Install deps END\n" "$(date +'%Y-%m-%dT%H:%M:%S%:z')" >> "$CI_LOG"
         shell: bash
 
       - name: Capture pip freeze
