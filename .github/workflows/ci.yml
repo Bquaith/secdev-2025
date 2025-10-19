@@ -1,4 +1,3 @@
-
 name: ci
 
 on:
@@ -8,16 +7,29 @@ on:
 jobs:
   build-test:
     runs-on: ubuntu-latest
+    env:
+      TZ: Europe/Berlin
     steps:
+      - name: Prepare EVIDENCE dir & CI_LOG
+        run: |
+          mkdir -p EVIDENCE/S08
+          export CI_LOG=EVIDENCE/ci-$(date +'%Y-%m-%d')-build.txt
+          echo "CI build log — $(date +'%Y-%m-%dT%H:%M:%S%:z')" > "${CI_LOG}"
+          echo "Repository: $GITHUB_REPOSITORY" >> "${CI_LOG}"
+          echo "Workflow: $GITHUB_WORKFLOW (run id: $GITHUB_RUN_ID)" >> "${CI_LOG}"
+          echo "---" >> "${CI_LOG}"
+          echo "Prepared EVIDENCE and CI_LOG=${CI_LOG}" >> "${CI_LOG}"
+        shell: bash
+
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Python
+      - name: Setup Python 3.11
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: Cache pip
+      - name: Restore pip cache
         uses: actions/cache@v4
         with:
           path: ~/.cache/pip
@@ -25,17 +37,69 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pip-
 
-      - name: Install deps
-        run: pip install -r requirements.txt
-
-      - name: Init DB
-        run: python scripts/init_db.py
-
-      - name: Run tests
+      - name: Install deps (log to CI_LOG)
         run: |
+          CI_LOG=EVIDENCE/ci-$(date +'%Y-%m-%d')-build.txt
+          printf "%s Install deps START\n" "$(date +'%Y-%m-%dT%H:%M:%S%:z')" >> "$CI_LOG"
+          pip install -r requirements.txt >> "$CI_LOG" 2>&1
+          ret=$?
+          printf "%s Install deps END exit=%d\n" "$(date +'%Y-%m-%dT%H:%M:%S%:z')" $ret >> "$CI_LOG"
+          if [ $ret -ne 0 ]; then cat "$CI_LOG"; exit $ret; fi
+        shell: bash
+
+      - name: Capture pip freeze
+        run: |
+          pip freeze > EVIDENCE/pip-freeze.txt
+          echo "pip freeze saved" >> EVIDENCE/ci-$(date +'%Y-%m-%d')-build.txt
+        shell: bash
+
+      - name: Init DB (log to CI_LOG)
+        run: |
+          CI_LOG=EVIDENCE/ci-$(date +'%Y-%m-%d')-build.txt
+          printf "%s Init DB START\n" "$(date +'%Y-%m-%dT%H:%M:%S%:z')" >> "$CI_LOG"
+          python scripts/init_db.py >> "$CI_LOG" 2>&1
+          ret=$?
+          printf "%s Init DB END exit=%d\n" "$(date +'%Y-%m-%dT%H:%M:%S%:z')" $ret >> "$CI_LOG"
+          if [ $ret -ne 0 ]; then cat "$CI_LOG"; exit $ret; fi
+        shell: bash
+
+      - name: Run tests (write junitxml and log)
+        run: |
+          CI_LOG=EVIDENCE/ci-$(date +'%Y-%m-%d')-build.txt
+          printf "%s Pytest START\n" "$(date +'%Y-%m-%dT%H:%M:%S%:z')" >> "$CI_LOG"
           mkdir -p EVIDENCE/S08
-          pytest -q --junitxml=EVIDENCE/S08/test-report.xml
-        continue-on-error: false
+          pytest -q --junitxml=EVIDENCE/S08/test-report.xml >> "$CI_LOG" 2>&1
+          ret=$?
+          printf "%s Pytest END exit=%d\n" "$(date +'%Y-%m-%dT%H:%M:%S%:z')" $ret >> "$CI_LOG"
+          if [ $ret -ne 0 ]; then
+            echo "pytest failed (exit $ret). junitxml at EVIDENCE/S08/test-report.xml" >> "$CI_LOG"
+            cat "$CI_LOG"
+            exit $ret
+          fi
+        shell: bash
+
+      - name: Build packages (optional) and collect package notes
+        run: |
+          CI_LOG=EVIDENCE/ci-$(date +'%Y-%m-%d')-build.txt
+          printf "%s Collect package-notes START\n" "$(date +'%Y-%m-%dT%H:%M:%S%:z')" >> "$CI_LOG"
+          echo "Built-on: runner ubuntu-latest, python 3.11" > EVIDENCE/package-notes.txt
+          if [ -d dist ] && [ "$(ls -A dist)" ]; then
+            echo "Found artifacts in dist/:" >> EVIDENCE/package-notes.txt
+            for f in dist/*; do
+              sha=$(sha256sum "$f" | awk '{print $1}')
+              size=$(stat -c%s "$f" || stat -f%z "$f")
+              echo "$(basename "$f")  size=$size  sha256=$sha" >> EVIDENCE/package-notes.txt
+            done
+          else
+            echo "No dist/ artifacts found. If you want packages, add a step to run: python -m build" >> EVIDENCE/package-notes.txt
+          fi
+          printf "%s Collect package-notes END\n" "$(date +'%Y-%m-%dT%H:%M:%S%:z')" >> "$CI_LOG"
+        shell: bash
+
+      - name: Create local-build placeholder
+        run: |
+          echo "Local build log — $(date +'%Y-%m-%d')" > EVIDENCE/local-build-$(date +'%Y-%m-%d').txt
+          echo "(placeholder)" >> EVIDENCE/local-build-$(date +'%Y-%m-%d').txt
 
       - name: Upload artifacts
         if: always()
@@ -43,5 +107,5 @@ jobs:
         with:
           name: evidence-s08
           path: |
-            EVIDENCE/S08/**
+            EVIDENCE/**
           if-no-files-found: warn
