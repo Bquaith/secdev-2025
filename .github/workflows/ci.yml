@@ -63,19 +63,49 @@ jobs:
           if [ $ret -ne 0 ]; then cat "$CI_LOG"; exit $ret; fi
         shell: bash
 
-      - name: Run tests (write junitxml and log)
+      - name: Run tests — junitxml, pytest-html and coverage (HTML + XML)
         run: |
           CI_LOG=EVIDENCE/ci-$(date +'%Y-%m-%d')-build.txt
           printf "%s Pytest START\n" "$(date +'%Y-%m-%dT%H:%M:%S%:z')" >> "$CI_LOG"
+
           mkdir -p EVIDENCE/S08
-          pytest -q --junitxml=EVIDENCE/S08/test-report.xml >> "$CI_LOG" 2>&1
+          # Run pytest: produce junitxml, html report (self-contained) and coverage html+xml into EVIDENCE
+          pytest -q \
+            --junitxml=EVIDENCE/S08/test-report.xml \
+            --html=EVIDENCE/pytest-report.html --self-contained-html \
+            --cov=. --cov-report=html:EVIDENCE/coverage-html --cov-report=xml:EVIDENCE/coverage.xml \
+            >> "$CI_LOG" 2>&1
+
           ret=$?
           printf "%s Pytest END exit=%d\n" "$(date +'%Y-%m-%dT%H:%M:%S%:z')" $ret >> "$CI_LOG"
+
           if [ $ret -ne 0 ]; then
             echo "pytest failed (exit $ret). junitxml at EVIDENCE/S08/test-report.xml" >> "$CI_LOG"
-            cat "$CI_LOG"
+            # show small tail of log to help debugging
+            tail -n 200 "$CI_LOG" || true
             exit $ret
           fi
+        shell: bash
+
+      - name: Create reports index (easy navigation in artifacts)
+        run: |
+          cat > EVIDENCE/reports-index.html <<'HTML'
+          <!doctype html>
+          <html>
+            <head><meta charset="utf-8"><title>CI Reports Index</title></head>
+            <body>
+              <h1>CI Reports</h1>
+              <ul>
+                <li><a href="./pytest-report.html">Pytest HTML report</a></li>
+                <li><a href="./S08/test-report.xml">Pytest JUnit XML (S08)</a></li>
+                <li><a href="./coverage-html/index.html">Coverage HTML report</a></li>
+                <li><a href="./pip-freeze.txt">pip-freeze.txt</a></li>
+                <li><a href="./package-notes.txt">package-notes.txt</a></li>
+                <li><a href="./ci-$(date +'%Y-%m-%d')-build.txt">ci log</a></li>
+              </ul>
+            </body>
+          </html>
+          HTML
         shell: bash
 
       - name: Build packages (optional) and collect package notes
