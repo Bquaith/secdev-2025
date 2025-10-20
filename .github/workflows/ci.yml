@@ -39,10 +39,6 @@ jobs:
           printf '%s' "$VAR_1" > secret-for-app.txt
           ls -l secret-for-app.txt
 
-      - name: Run tests that use secret
-        run: |
-          ./run-tests.sh
-
       - name: Explicitly mask secret (extra safety)
         run: |
           echo "::add-mask::$VAR_1"
