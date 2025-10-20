@@ -158,10 +158,11 @@ jobs:
           path: |
             EVIDENCE/**
           if-no-files-found: warn
-
       - name: Quick secrets grep -> EVIDENCE/grep-secrets.txt
         run: |
           mkdir -p EVIDENCE
-          git grep -nE -o 'AKIA|SECRET|api[_-]?key|api[_-]?token|token=|password=|passwd|MY_SECRET_KEY|VAR_1' || true > EVIDENCE/grep-secrets.txt
-          echo "grep saved: $(wc -l < EVIDENCE/grep-secrets.txt || true) lines" >> EVIDENCE/ci-$(date +'%Y-%m-%d')-build.txt
+          git grep -nE -o 'AKIA|SECRET|api[_-]?key|api[_-]?token|token=|password=|passwd|MY_SECRET_KEY|VAR_1' > EVIDENCE/grep-secrets.txt || true
+          
+          lines=$(wc -l < EVIDENCE/grep-secrets.txt 2>/dev/null || echo 0)
+          echo "grep saved: $lines lines" >> EVIDENCE/ci-$(date +'%Y-%m-%d')-build.txt
         shell: bash
