@@ -165,28 +165,3 @@ jobs:
           git grep -nE -o 'AKIA|SECRET|api[_-]?key|api[_-]?token|token=|password=|passwd|MY_SECRET_KEY|VAR_1' || true > EVIDENCE/grep-secrets.txt
           echo "grep saved: $(wc -l < EVIDENCE/grep-secrets.txt || true) lines" >> EVIDENCE/ci-$(date +'%Y-%m-%d')-build.txt
         shell: bash
-
-      - name: Scan repo history with gitleaks (official action) -> EVIDENCE/gitleaks-report.json
-        uses: gitleaks/gitleaks-action@v2
-        continue-on-error: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          args: detect --source=/github/workspace --report-format=json --report-path=/github/workspace/EVIDENCE/gitleaks-report.json
-
-      - name: Create safe gitleaks summary (no secret values) -> EVIDENCE/gitleaks-summary.txt
-        run: |
-          mkdir -p EVIDENCE
-          # нужно sudo для apt-get на ubuntu runner
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq jq
-
-          if [ -s EVIDENCE/gitleaks-report.json ]; then
-            # делаем редуцированную сводку без полей, содержащих сами совпадения
-            jq -r '.[] | "rule: \(.rule) | file: \(.file // \"N/A\") | commit: \(.commit // \"N/A\") | author: \(.author // \"N/A\") | date: \(.date // \"N/A\")"' EVIDENCE/gitleaks-report.json > EVIDENCE/gitleaks-summary.txt || true
-            echo "gitleaks summary written to EVIDENCE/gitleaks-summary.txt" >> EVIDENCE/ci-$(date +'%Y-%m-%d')-build.txt
-          else
-            echo "no gitleaks report found" > EVIDENCE/gitleaks-summary.txt
-            echo "gitleaks produced no report" >> EVIDENCE/ci-$(date +'%Y-%m-%d')-build.txt
-          fi
-        shell: bash
