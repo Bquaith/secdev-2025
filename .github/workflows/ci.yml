@@ -8,6 +8,7 @@ jobs:
   build-test:
     runs-on: ubuntu-latest
     env:
+      VAR_1: ${{ secrets.MY_SECRET_KEY }
       TZ: Europe/Berlin
     steps:
       - name: Prepare EVIDENCE dir & CI_LOG
@@ -23,6 +24,28 @@ jobs:
 
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Show non-secret status
+        run: |
+          if [ -z "$VAR_1" ]; then
+            echo "VAR_1 is empty"
+            exit 1
+          else
+            echo "VAR_1 is set -> yes"
+          fi
+
+      - name: Save secret to file for app
+        run: |
+          printf '%s' "$VAR_1" > secret-for-app.txt
+          ls -l secret-for-app.txt
+
+      - name: Run tests that use secret
+        run: |
+          ./run-tests.sh
+
+      - name: Explicitly mask secret (extra safety)
+        run: |
+          echo "::add-mask::$VAR_1"
 
       - name: Setup Python 3.11
         uses: actions/setup-python@v5
