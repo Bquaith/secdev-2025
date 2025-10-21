@@ -150,14 +150,6 @@ jobs:
           echo "Local build log — $(date +'%Y-%m-%d')" > EVIDENCE/local-build-$(date +'%Y-%m-%d').txt
           echo "(placeholder)" >> EVIDENCE/local-build-$(date +'%Y-%m-%d').txt
 
-      - name: Upload artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: evidence-s08
-          path: |
-            EVIDENCE/**
-          if-no-files-found: warn
       - name: Quick secrets grep -> EVIDENCE/grep-secrets.txt
         run: |
           mkdir -p EVIDENCE
@@ -167,3 +159,12 @@ jobs:
           echo "grep saved: $lines lines" >> EVIDENCE/ci-$(date +'%Y-%m-%d')-build.txt          
           echo "(placeholder)" >> EVIDENCE/grep-secrets.txt
         shell: bash
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: evidence-s08
+          path: |
+            EVIDENCE/**
+          if-no-files-found: warn
